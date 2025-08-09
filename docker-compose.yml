@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  discord-ticket-bot:
+    build: .
+    container_name: discord-ticket-bot
+    restart: unless-stopped
+    environment:
+      # Discord Bot Configuration
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      
+      # Guild and Channel IDs (with defaults)
+      - GUILD_ID=${GUILD_ID:-1403842178580484358}
+      - TICKET_PANEL_CHANNEL_ID=${TICKET_PANEL_CHANNEL_ID:-1403880541761044621}
+      - STAFF_TEAM_ROLE_ID=${STAFF_TEAM_ROLE_ID:-1403852263554023545}
+      - TICKET_CHANNEL_CATEGORY_ID=${TICKET_CHANNEL_CATEGORY_ID:-1403880428233818112}
+      
+      # Webhook Configuration
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - WEBHOOK_MESSAGE_TEMPLATE=${WEBHOOK_MESSAGE_TEMPLATE:-New ticket created: {title} by {user} in category {category}}
+      
+      # Node.js environment
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - bot-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Bot is running')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  bot-network:
+    driver: bridge
