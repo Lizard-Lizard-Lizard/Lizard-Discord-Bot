@@ -38,16 +38,18 @@ class TicketBot {
           await this.interactionHandler.handleInteraction(interaction);
         }
       } catch (error) {
-        console.error('❌ Error handling interaction:', error);
-        const reply = {
-          content: '❌ An error occurred while processing your request. Please try again.',
-          ephemeral: true
-        };
-
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(reply);
-        } else {
-          await interaction.reply(reply);
+        console.error('❌ Unhandled error in interaction:', error);
+        
+        // Only show error if interaction hasn't been replied to yet
+        if (!interaction.replied && !interaction.deferred) {
+          try {
+            await interaction.reply({
+              content: '❌ An unexpected error occurred. Please try again.',
+              ephemeral: true
+            });
+          } catch (replyError) {
+            console.error('❌ Failed to send error reply:', replyError);
+          }
         }
       }
     });
@@ -89,6 +91,12 @@ class TicketBot {
 
     if (!command) {
       console.error(`❌ No command matching ${interaction.commandName} was found.`);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: '❌ Command not found.',
+          ephemeral: true
+        });
+      }
       return;
     }
 
@@ -97,15 +105,16 @@ class TicketBot {
     } catch (error) {
       console.error(`❌ Error executing command ${interaction.commandName}:`, error);
       
-      const reply = {
-        content: '❌ There was an error while executing this command!',
-        ephemeral: true
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
+      // Only show error if interaction hasn't been replied to yet
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({
+            content: '❌ There was an error while executing this command!',
+            ephemeral: true
+          });
+        } catch (replyError) {
+          console.error('❌ Failed to send command error reply:', replyError);
+        }
       }
     }
   }
