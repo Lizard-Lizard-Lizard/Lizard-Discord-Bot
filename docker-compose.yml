@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   discord-ticket-bot:
-    build: .
+    image: ghcr.io/lizard-lizard-lizard/ticket-system:master
     container_name: discord-ticket-bot
     restart: unless-stopped
     environment:
