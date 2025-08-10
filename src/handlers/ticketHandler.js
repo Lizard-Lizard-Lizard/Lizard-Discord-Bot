@@ -83,8 +83,7 @@ class TicketHandler {
         .setDescription(ticketData.message)
         .addFields(
           { name: 'Category', value: ticketData.category, inline: true },
-          { name: 'Submitted by', value: `<@${interaction.user.id}>`, inline: true },
-          { name: 'Status', value: '🟡 Open', inline: true }
+          { name: 'Submitted by', value: `<@${interaction.user.id}>`, inline: true }
         )
         .setColor(this.getCategoryColor(ticketData.category))
         .setTimestamp()
@@ -115,24 +114,40 @@ class TicketHandler {
         channelId: ticketChannel.id
       });
 
-      // Update original interaction
-      await interaction.update({
-        content: `✅ Ticket created successfully! Check <#${ticketChannel.id}>`,
-        embeds: [],
-        components: [],
-        ephemeral: true
-      });
+      // Acknowledge to user without throwing (modal submit path uses reply/editReply)
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.editReply({
+            content: `✅ Ticket created successfully! Check <#${ticketChannel.id}>`,
+            embeds: [],
+            components: []
+          });
+        } else {
+          await interaction.reply({
+            content: `✅ Ticket created successfully! Check <#${ticketChannel.id}>`,
+            ephemeral: true
+          });
+        }
+      } catch {}
 
       console.log(`✅ Ticket created: ${ticketChannel.name} by ${interaction.user.tag}`);
 
     } catch (error) {
       console.error('❌ Error creating ticket:', error);
-      await interaction.update({
-        content: '❌ Failed to create ticket. Please try again or contact an administrator.',
-        embeds: [],
-        components: [],
-        ephemeral: true
-      });
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.editReply({
+            content: '❌ Failed to create ticket. Please try again or contact an administrator.',
+            embeds: [],
+            components: []
+          });
+        } else {
+          await interaction.reply({
+            content: '❌ Failed to create ticket. Please try again or contact an administrator.',
+            ephemeral: true
+          });
+        }
+      } catch {}
     }
   }
 

@@ -25,15 +25,14 @@ class InteractionHandler {
       }
     } catch (error) {
       console.error('❌ Error handling interaction:', error);
-      const reply = {
-        content: '❌ An error occurred while processing your request. Please try again.',
-        ephemeral: true
-      };
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
+      // Do not spam error messages if already acknowledged
+      if (!interaction.replied && !interaction.deferred) {
+        try {
+          await interaction.reply({
+            content: '❌ An error occurred while processing your request. Please try again.',
+            ephemeral: true
+          });
+        } catch {}
       }
     }
   }
