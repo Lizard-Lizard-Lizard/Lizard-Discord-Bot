@@ -46,6 +46,12 @@ class InteractionHandler {
       case 'close_ticket':
         await this.ticketHandler.closeTicket(interaction);
         break;
+      case 'confirm_delete_ticket':
+        await this.deleteTicket(interaction);
+        break;
+      case 'cancel_delete_ticket':
+        await this.cancelDeleteTicket(interaction);
+        break;
       default:
         await interaction.reply({
           content: '❌ Unknown button interaction.',
@@ -55,7 +61,7 @@ class InteractionHandler {
   }
 
   async handleModalSubmit(interaction) {
-    if (interaction.customId === 'ticket_modal') {
+    if (interaction.customId.startsWith('ticket_modal_')) {
       await this.processTicketSubmission(interaction);
     }
   }
@@ -99,8 +105,8 @@ class InteractionHandler {
 
   async showTicketModal(interaction, selectedCategory) {
     const modal = new ModalBuilder()
-      .setCustomId('ticket_modal')
-      .setTitle('Create Support Ticket');
+      .setCustomId(`ticket_modal_${selectedCategory}`)
+      .setTitle(`Create Support Ticket - ${selectedCategory}`);
 
     // Title input
     const titleInput = new TextInputBuilder()
@@ -120,21 +126,11 @@ class InteractionHandler {
       .setRequired(true)
       .setMaxLength(1000);
 
-    // Category input (pre-filled with selected category)
-    const categoryInput = new TextInputBuilder()
-      .setCustomId('ticket_category')
-      .setLabel('Category')
-      .setStyle(TextInputStyle.Short)
-      .setValue(selectedCategory)
-      .setRequired(true)
-      .setMaxLength(20);
-
-    // Add inputs to modal
+    // Add inputs to modal (only title and message visible)
     const firstActionRow = new ActionRowBuilder().addComponents(titleInput);
     const secondActionRow = new ActionRowBuilder().addComponents(messageInput);
-    const thirdActionRow = new ActionRowBuilder().addComponents(categoryInput);
 
-    modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+    modal.addComponents(firstActionRow, secondActionRow);
 
     await interaction.showModal(modal);
   }
@@ -143,7 +139,9 @@ class InteractionHandler {
     try {
       const title = interaction.fields.getTextInputValue('ticket_title');
       const message = interaction.fields.getTextInputValue('ticket_message');
-      const category = interaction.fields.getTextInputValue('ticket_category');
+      
+      // Extract category from modal custom ID
+      const category = interaction.customId.replace('ticket_modal_', '');
 
       // Validate category
       const validCategories = ['General', 'Bugs', 'Suggestions'];
@@ -176,6 +174,35 @@ class InteractionHandler {
         content: '❌ Failed to process ticket submission. Please try again.',
         ephemeral: true
       });
+    }
+  }
+
+  async deleteTicket(interaction) {
+    try {
+      const channel = interaction.channel;
+      
+      // Delete the channel
+      await channel.delete();
+      console.log(`🗑️ Ticket channel deleted: ${channel.name} by ${interaction.user.tag}`);
+      
+    } catch (error) {
+      console.error('❌ Error deleting ticket channel:', error);
+      await interaction.reply({
+        content: '❌ Failed to delete the ticket channel. Please try again or contact an administrator.',
+        ephemeral: true
+      });
+    }
+  }
+
+  async cancelDeleteTicket(interaction) {
+    try {
+      await interaction.update({
+        content: '❌ Ticket deletion cancelled.',
+        components: [],
+        ephemeral: true
+      });
+    } catch (error) {
+      console.error('❌ Error cancelling ticket deletion:', error);
     }
   }
 }

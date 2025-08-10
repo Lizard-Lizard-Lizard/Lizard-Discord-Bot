@@ -24,12 +24,23 @@ class TicketHandler {
         throw new Error('Required guild, category, or staff role not found');
       }
 
-      // Create ticket channel
-      const channelName = `ticket-${interaction.user.username.toLowerCase()}-${Date.now().toString().slice(-4)}`;
+      // Create ticket channel with format: ticket-<category>-<username>-<id>
+      const sanitize = (value) => {
+        return String(value)
+          .toLowerCase()
+          .replace(/[^a-z0-9-_]+/g, '-')
+          .replace(/-{2,}/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 24);
+      };
+
+      const shortId = Date.now().toString().slice(-4);
+      const channelName = `ticket-${sanitize(ticketData.category)}-${sanitize(interaction.user.username)}-${shortId}`;
       const ticketChannel = await guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
         parent: category,
+        topic: `Ticket for ${interaction.user.tag} | creatorId:${interaction.user.id} | category:${ticketData.category}`,
         permissionOverwrites: [
           {
             id: guild.id, // @everyone role

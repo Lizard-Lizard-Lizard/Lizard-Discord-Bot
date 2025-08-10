@@ -1,0 +1,199 @@
+const { SlashCommandBuilder, PermissionFlagsBits, AttachmentBuilder, OverwriteType } = require('discord.js');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('create-transcript')
+    .setDescription('Create a transcript of the current ticket and send it via DM (Staff only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    // Optional user to send transcript to
+    .addUserOption(option =>
+      option
+        .setName('user')
+        .setDescription('User to send the transcript to (defaults to ticket creator)')
+        .setRequired(false)
+    ),
+
+  async execute(interaction) {
+    try {
+      const channel = interaction.channel;
+      
+      // Check if this is actually a ticket channel
+      if (!channel.name.startsWith('ticket-') && !channel.name.startsWith('closed-')) {
+        await interaction.reply({
+          content: '❌ This command can only be used in ticket channels.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Check if user has staff role
+      const config = require('../config');
+      const staffRole = interaction.guild.roles.cache.get(config.staffTeamRoleId);
+      
+      if (!staffRole || !interaction.member.roles.cache.has(staffRole.id)) {
+        await interaction.reply({
+          content: '❌ You do not have permission to create transcripts. Staff role required.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // Defer reply since this might take a while
+      await interaction.deferReply({ ephemeral: true });
+
+      try {
+        // Resolve recipient: explicit option > channel topic creatorId > first non-bot ticket participant
+        const specifiedUser = interaction.options.getUser('user');
+        let recipientMember = null;
+
+        if (specifiedUser) {
+          // Use explicitly specified user
+          try {
+            recipientMember = await interaction.guild.members.fetch(specifiedUser.id);
+          } catch {}
+        }
+
+        if (!recipientMember) {
+          // Try to get from channel topic: creatorId:<id>
+          const topic = channel.topic || '';
+          const match = topic.match(/creatorId:(\d{17,20})/);
+          if (match && match[1]) {
+            try {
+              recipientMember = await interaction.guild.members.fetch(match[1]);
+            } catch {}
+          }
+        }
+
+        if (!recipientMember) {
+          // Inspect permission overwrites for a member with ViewChannel (likely the ticket opener)
+          const overwrites = channel.permissionOverwrites.cache;
+          for (const overwrite of overwrites.values()) {
+            if (
+              (overwrite.type === OverwriteType.Member || overwrite.type === 1) &&
+              overwrite.allow.has(PermissionFlagsBits.ViewChannel)
+            ) {
+              try {
+                const member = await interaction.guild.members.fetch(overwrite.id);
+                if (member && !member.user.bot) {
+                  recipientMember = member;
+                  break;
+                }
+              } catch {}
+            }
+          }
+        }
+
+        if (!recipientMember) {
+          // Fallback: first non-bot, non-staff message author
+          const staffRoleId = require('../config').staffTeamRoleId;
+          const messages = await channel.messages.fetch({ limit: 100 });
+          const candidate = [...messages.values()].reverse().find(m => {
+            const isBot = m.author.bot;
+            const member = m.member;
+            const isStaff = member?.roles?.cache?.has(staffRoleId);
+            return !isBot && !isStaff;
+          });
+          if (candidate) {
+            try {
+              recipientMember = await interaction.guild.members.fetch(candidate.author.id);
+            } catch {}
+          }
+        }
+
+        if (!recipientMember) {
+          await interaction.editReply({
+            content: '❌ Could not determine a recipient for the transcript. Provide a user with /create-transcript user:@someone',
+            ephemeral: true
+          });
+          return;
+        }
+
+        // Fetch all messages in the channel
+        const allMessages = [];
+        let lastId;
+        
+        while (true) {
+          const options = { limit: 100 };
+          if (lastId) {
+            options.before = lastId;
+          }
+          
+          const messages = await channel.messages.fetch(options);
+          if (messages.size === 0) break;
+          
+          allMessages.push(...messages.values());
+          lastId = messages.last().id;
+        }
+
+        // Sort messages by timestamp
+        allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+        // Create transcript content
+        let transcript = `# Ticket Transcript\n\n`;
+        transcript += `**Channel:** ${channel.name}\n`;
+        transcript += `**Created:** ${channel.createdAt.toISOString()}\n`;
+        transcript += `**Transcript Generated:** ${new Date().toISOString()}\n`;
+        transcript += `**Generated by:** ${interaction.user.tag}\n\n`;
+        transcript += `---\n\n`;
+
+        // Add messages to transcript
+        for (const message of allMessages) {
+          const timestamp = message.createdAt.toISOString();
+          const author = message.author.tag;
+          const content = message.content || '[No text content]';
+          
+          transcript += `**[${timestamp}] ${author}:**\n${content}\n\n`;
+          
+          // Add attachments if any
+          if (message.attachments.size > 0) {
+            transcript += `**Attachments:**\n`;
+            message.attachments.forEach(attachment => {
+              transcript += `- ${attachment.name}: ${attachment.url}\n`;
+            });
+            transcript += `\n`;
+          }
+        }
+
+        // Create attachment
+        const buffer = Buffer.from(transcript, 'utf8');
+        const attachment = new AttachmentBuilder(buffer, { name: `transcript-${channel.name}-${Date.now()}.txt` });
+
+        // Try to send transcript to recipient
+        try {
+          await recipientMember.send({
+            content: `📄 **Ticket Transcript**\n\nHere is the transcript for ticket: **${channel.name}**\n\nThis transcript was generated by a staff member and contains all messages from the ticket channel.`,
+            files: [attachment]
+          });
+
+          await interaction.editReply({
+            content: `✅ Transcript sent successfully to ${recipientMember.user.tag}!`,
+            ephemeral: true
+          });
+
+          console.log(`📄 Transcript sent to ${recipientMember.user.tag} for ticket: ${channel.name}`);
+
+        } catch (dmError) {
+          console.error('❌ Failed to send DM:', dmError);
+          await interaction.editReply({
+            content: `❌ Failed to send transcript to ${recipientMember.user.tag}. They may have DMs disabled.`,
+            ephemeral: true
+          });
+        }
+
+      } catch (error) {
+        console.error('❌ Error creating transcript:', error);
+        await interaction.editReply({
+          content: '❌ An error occurred while creating the transcript. Please try again.',
+          ephemeral: true
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error in create-transcript command:', error);
+      await interaction.reply({
+        content: '❌ An error occurred while processing the transcript command. Please try again.',
+        ephemeral: true
+      });
+    }
+  }
+};
