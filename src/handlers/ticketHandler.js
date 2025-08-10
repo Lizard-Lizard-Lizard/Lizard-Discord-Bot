@@ -17,7 +17,9 @@ class TicketHandler {
   async createTicket(interaction, ticketData) {
     try {
       const guild = this.client.guilds.cache.get(this.config.guildId);
-      const category = guild.channels.cache.get(this.config.ticketChannelCategoryId);
+      // Choose the appropriate category by ticket type with fallbacks
+      const categoryIdByType = this.config.ticketCategoryIds?.[ticketData.category] || this.config.ticketChannelCategoryId;
+      const category = guild.channels.cache.get(categoryIdByType);
       const staffRole = guild.roles.cache.get(this.config.staffTeamRoleId);
 
       if (!guild || !category || !staffRole) {

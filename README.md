@@ -114,4 +114,10 @@ The ticket category should be private and only accessible to staff members. The 
 
 ### Commands
 
-- `/setup-ticket-panel`: Creates the ticket panel (Admin only)
+- `/setup-ticket-panel` (Admin only): Creates the ticket panel message in the configured `TICKET_PANEL_CHANNEL_ID`.
+- `/delete-ticket` (Staff only): Deletes the current ticket channel after confirmation.
+- `/create-transcript [user:@member]` (Staff only): Generates a transcript of the current ticket and sends it via DM. If `user` is provided, the transcript is sent to that user; otherwise it is sent to the ticket creator.
+- `/ticket-summon user:@member` (Staff only): Grants the specified user access to the current ticket channel (View Channel, Send Messages, Read Message History).
+
+Notes:
+- Closing a ticket is done via the “Close Ticket” button inside each ticket channel.

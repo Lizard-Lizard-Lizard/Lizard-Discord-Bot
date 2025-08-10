@@ -9,7 +9,14 @@ const config = {
   guildId: process.env.GUILD_ID || '1403842178580484358',
   ticketPanelChannelId: process.env.TICKET_PANEL_CHANNEL_ID || '1403880541761044621',
   staffTeamRoleId: process.env.STAFF_TEAM_ROLE_ID || '1403852263554023545',
+  // Backward compatible single ticket category id (used if specific mapping missing)
   ticketChannelCategoryId: process.env.TICKET_CHANNEL_CATEGORY_ID || '1403880428233818112',
+  // Category-specific channel category IDs
+  ticketCategoryIds: {
+    General: process.env.TICKET_CATEGORY_GENERAL_ID || '1403897055310647336',
+    Bugs: process.env.TICKET_CATEGORY_BUGS_ID || '1403880428233818112',
+    Suggestions: process.env.TICKET_CATEGORY_SUGGESTIONS_ID || '1403897167239839758'
+  },
   
   // Webhook Configuration
   webhookUrl: process.env.WEBHOOK_URL,
