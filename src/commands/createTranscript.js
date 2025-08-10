@@ -4,7 +4,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('create-transcript')
     .setDescription('Create a transcript of the current ticket and send it via DM (Staff only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     // Optional user to send transcript to
     .addUserOption(option =>
       option
