@@ -37,6 +37,10 @@ GUILD_ID=1403842178580484358
 TICKET_PANEL_CHANNEL_ID=1403880541761044621
 STAFF_TEAM_ROLE_ID=1403852263554023545
 TICKET_CHANNEL_CATEGORY_ID=1403880428233818112
+# Category-specific parent categories (fallback to TICKET_CHANNEL_CATEGORY_ID if not provided)
+TICKET_CATEGORY_GENERAL_ID=1403897055310647336
+TICKET_CATEGORY_BUGS_ID=1403880428233818112
+TICKET_CATEGORY_SUGGESTIONS_ID=1403897167239839758
 
 # Optional Webhook
 WEBHOOK_URL=your_webhook_url_here
@@ -118,6 +122,7 @@ The ticket category should be private and only accessible to staff members. The 
 - `/delete-ticket` (Staff only): Deletes the current ticket channel after confirmation.
 - `/create-transcript [user:@member]` (Staff only): Generates a transcript of the current ticket and sends it via DM. If `user` is provided, the transcript is sent to that user; otherwise it is sent to the ticket creator.
 - `/ticket-summon user:@member` (Staff only): Grants the specified user access to the current ticket channel (View Channel, Send Messages, Read Message History).
+- `/ticket-publish reason:<text>` (Staff only): Makes the current ticket publicly visible (read-only for everyone except staff) and posts an embed with the given reason.
 
 Notes:
 - Closing a ticket is done via the “Close Ticket” button inside each ticket channel.
