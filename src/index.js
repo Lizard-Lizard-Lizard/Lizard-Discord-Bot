@@ -34,7 +34,7 @@ class TicketBot {
       try {
         if (interaction.isChatInputCommand()) {
           await this.handleSlashCommand(interaction);
-        } else if (interaction.isButton() || interaction.isModalSubmit()) {
+        } else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
           await this.interactionHandler.handleInteraction(interaction);
         }
       } catch (error) {

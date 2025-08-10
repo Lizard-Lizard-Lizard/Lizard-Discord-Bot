@@ -2,7 +2,9 @@ const {
   ModalBuilder, 
   TextInputBuilder, 
   TextInputStyle, 
-  ActionRowBuilder 
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } = require('discord.js');
 const TicketHandler = require('./ticketHandler');
 
@@ -18,6 +20,8 @@ class InteractionHandler {
         await this.handleButtonInteraction(interaction);
       } else if (interaction.isModalSubmit()) {
         await this.handleModalSubmit(interaction);
+      } else if (interaction.isStringSelectMenu()) {
+        await this.handleSelectMenu(interaction);
       }
     } catch (error) {
       console.error('❌ Error handling interaction:', error);
@@ -37,7 +41,7 @@ class InteractionHandler {
   async handleButtonInteraction(interaction) {
     switch (interaction.customId) {
       case 'create_ticket':
-        await this.showTicketModal(interaction);
+        await this.showCategorySelection(interaction);
         break;
       case 'close_ticket':
         await this.ticketHandler.closeTicket(interaction);
@@ -56,7 +60,44 @@ class InteractionHandler {
     }
   }
 
-  async showTicketModal(interaction) {
+  async handleSelectMenu(interaction) {
+    if (interaction.customId === 'category_select') {
+      await this.showTicketModal(interaction, interaction.values[0]);
+    }
+  }
+
+  async showCategorySelection(interaction) {
+    const categorySelect = new StringSelectMenuBuilder()
+      .setCustomId('category_select')
+      .setPlaceholder('Select a category for your ticket')
+      .addOptions(
+        new StringSelectMenuOptionBuilder()
+          .setLabel('General')
+          .setDescription('General questions and support')
+          .setValue('General')
+          .setEmoji('❓'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Bugs')
+          .setDescription('Report bugs or issues')
+          .setValue('Bugs')
+          .setEmoji('🐛'),
+        new StringSelectMenuOptionBuilder()
+          .setLabel('Suggestions')
+          .setDescription('Feature requests and suggestions')
+          .setValue('Suggestions')
+          .setEmoji('💡')
+      );
+
+    const row = new ActionRowBuilder().addComponents(categorySelect);
+
+    await interaction.reply({
+      content: 'Please select a category for your ticket:',
+      components: [row],
+      ephemeral: true
+    });
+  }
+
+  async showTicketModal(interaction, selectedCategory) {
     const modal = new ModalBuilder()
       .setCustomId('ticket_modal')
       .setTitle('Create Support Ticket');
@@ -79,12 +120,12 @@ class InteractionHandler {
       .setRequired(true)
       .setMaxLength(1000);
 
-    // Category input
+    // Category input (pre-filled with selected category)
     const categoryInput = new TextInputBuilder()
       .setCustomId('ticket_category')
-      .setLabel('Category (General/Bugs/Suggestions)')
+      .setLabel('Category')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Enter: General, Bugs, or Suggestions')
+      .setValue(selectedCategory)
       .setRequired(true)
       .setMaxLength(20);
 
