@@ -20,7 +20,12 @@ const config = {
   
   // Webhook Configuration
   webhookUrl: process.env.WEBHOOK_URL,
-  webhookMessageTemplate: process.env.WEBHOOK_MESSAGE_TEMPLATE || 'New ticket created: {title} by {user} in category {category}'
+  webhookMessageTemplate: process.env.WEBHOOK_MESSAGE_TEMPLATE || 'New ticket created: {title} by {user} in category {category}',
+  
+  // GitHub Configuration
+  githubToken: process.env.GITHUB_TOKEN,
+  githubRepo: process.env.GITHUB_REPO || 'owner/repo',
+  githubLabels: process.env.GITHUB_LABELS ? process.env.GITHUB_LABELS.split(',') : ['discord-ticket']
 };
 
 // Validate required configuration
@@ -32,6 +37,11 @@ if (!config.discordToken) {
 if (!config.clientId) {
   console.error('❌ DISCORD_CLIENT_ID is required in environment variables');
   process.exit(1);
+}
+
+// GitHub token is optional - only warn if not provided
+if (!config.githubToken) {
+  console.warn('⚠️  GITHUB_TOKEN not provided - GitHub issue conversion will be disabled');
 }
 
 module.exports = config;

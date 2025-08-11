@@ -125,15 +125,14 @@ class TicketBot {
       
       const commands = Array.from(this.client.commands.values()).map(command => command.data.toJSON());
       
-      // Register commands for the specific guild (faster than global)
+      // Only register for the specific guild
       const guild = this.client.guilds.cache.get(config.guildId);
       if (guild) {
         await guild.commands.set(commands);
         console.log(`✅ Successfully registered ${commands.length} slash command(s) for guild: ${guild.name}`);
       } else {
-        console.log('⚠️  Guild not found, registering commands globally (may take up to 1 hour to appear)');
-        await this.client.application.commands.set(commands);
-        console.log(`✅ Successfully registered ${commands.length} slash command(s) globally`);
+        console.error('❌ Guild not found! Check your config.guildId');
+        process.exit(1);
       }
     } catch (error) {
       console.error('❌ Error registering commands:', error);

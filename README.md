@@ -1,4 +1,4 @@
-# Discord Ticket Bot
+# Lizard Discord Bot
 
 A Discord bot that creates a ticket system with three categories (General, Bugs, Suggestions) and sends webhook notifications. Built with Node.js, Discord.js, and pnpm.
 
@@ -8,6 +8,8 @@ A Discord bot that creates a ticket system with three categories (General, Bugs,
 - 📋 **Three Categories**: General, Bugs, and Suggestions
 - 🔒 **Private Channels**: Tickets create private Discord channels visible only to the submitter and staff
 - 🔔 **Webhook Notifications**: Configurable webhook URL for external notifications
+- 🐙 **GitHub Integration**: Convert tickets to GitHub issues with transcript and custom titles
+- 📝 **Transcript Generation**: Export ticket conversations for documentation or escalation
 - 🐳 **Docker Ready**: Complete Docker and Docker Compose setup for Coolify deployment
 - ⚙️ **Configurable**: Environment-based configuration with sensible defaults
 
@@ -45,6 +47,12 @@ TICKET_CATEGORY_SUGGESTIONS_ID=1403897167239839758
 # Optional Webhook
 WEBHOOK_URL=your_webhook_url_here
 WEBHOOK_MESSAGE_TEMPLATE=New ticket created: {title} by {user} in category {category}
+
+# GitHub Configuration (Required for issue conversion)
+# Labels Optional: Comma-separated list (default: Discord)
+GITHUB_TOKEN=your_github_personal_access_token_here
+GITHUB_REPO=owner/repository_name
+GITHUB_LABELS=Discord
 ```
 
 ### Local Development
@@ -76,46 +84,6 @@ WEBHOOK_MESSAGE_TEMPLATE=New ticket created: {title} by {user} in category {cate
    - Set environment variables in Coolify dashboard
    - Deploy using the Docker Compose method
 
-## Discord Setup
-
-### Required Discord Structure
-
-1. **Guild/Server**: Your Discord server
-2. **Ticket Panel Channel**: Public channel where users can create tickets
-3. **Staff Team Role**: Role for staff members who can see all tickets
-4. **Ticket Category**: Private category where ticket channels are created
-
-### Bot Permissions
-
-The bot needs these permissions in your Discord server:
-- **Manage Channels**: To create ticket channels
-- **Send Messages**: To send ticket information
-- **Read Message History**: To read ticket messages
-- **Use Slash Commands**: To register and use commands
-- **Manage Roles**: To set channel permissions
-
-### Channel Permissions
-
-The ticket category should be private and only accessible to staff members. The bot will automatically set proper permissions for each ticket channel.
-
-## Usage
-
-### Creating Tickets
-
-1. Users click the "Create Ticket" button in the ticket panel
-2. Fill out the modal with:
-   - **Title**: Brief description of the issue
-   - **Message**: Detailed explanation
-   - **Category**: General, Bugs, or Suggestions
-3. A private channel is created with proper permissions
-4. Webhook notification is sent (if configured)
-
-### Managing Tickets
-
-- **Staff members** can see all tickets in the private category
-- **Ticket creators** can only see their own tickets
-- **Close button** allows staff to close and archive tickets
-
 ### Commands
 
 - `/setup-ticket-panel` (Admin only): Creates the ticket panel message in the configured `TICKET_PANEL_CHANNEL_ID`.
@@ -123,6 +91,4 @@ The ticket category should be private and only accessible to staff members. The 
 - `/create-transcript [user:@member]` (Staff only): Generates a transcript of the current ticket and sends it via DM. If `user` is provided, the transcript is sent to that user; otherwise it is sent to the ticket creator.
 - `/ticket-summon user:@member` (Staff only): Grants the specified user access to the current ticket channel (View Channel, Send Messages, Read Message History).
 - `/ticket-publish reason:<text>` (Staff only): Makes the current ticket publicly visible (read-only for everyone except staff) and posts an embed with the given reason.
-
-Notes:
-- Closing a ticket is done via the “Close Ticket” button inside each ticket channel.
+- `/convert-to-github title:<text> [description:<text>]` (Staff only): Converts the current ticket to a GitHub issue with the specified title and optional description. The ticket transcript is included as a code block in the issue body.
