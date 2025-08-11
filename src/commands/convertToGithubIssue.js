@@ -258,7 +258,7 @@ module.exports = {
     }
   },
 
-  async createGitHubIssue(title, transcript, additionalDescription, channel, participants) {
+  async createGitHubIssue(title, transcript, additionalDescription, channel, participants, isTicketChannel) {
     try {
       const config = require('../config');
       
@@ -270,6 +270,7 @@ module.exports = {
 
       console.log(`🔍 Attempting to create GitHub issue in ${owner}/${repo}`);
       console.log(`🔑 Using token: ${config.githubToken ? config.githubToken.substring(0, 8) + '...' : 'NOT SET'}`);
+      console.log(`📋 Channel type: ${isTicketChannel ? 'Ticket Channel' : 'Regular Channel'}`);
 
       const issueBody = this.formatIssueBody(transcript, additionalDescription, channel, participants, isTicketChannel);
       
