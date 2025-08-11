@@ -2,14 +2,15 @@ const {
   SlashCommandBuilder, 
   PermissionFlagsBits, 
   EmbedBuilder,
-  AttachmentBuilder
+  AttachmentBuilder,
+  MessageFlags
 } = require('discord.js');
 const axios = require('axios');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('convert-to-github')
-    .setDescription('Convert this ticket to a GitHub issue (Staff only)')
+    .setDescription('Create a GitHub issue (with transcript if used in a ticket channel) (Staff only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
     .addStringOption(option =>
       option
@@ -31,14 +32,8 @@ module.exports = {
       const channel = interaction.channel;
       const config = require('../config');
       
-      // Check if this is actually a ticket channel
-      if (!channel.name.startsWith('ticket-') && !channel.name.startsWith('closed-')) {
-        await interaction.reply({
-          content: '❌ This command can only be used in ticket channels.',
-          ephemeral: true
-        });
-        return;
-      }
+      // Check if this is a ticket channel or regular channel
+      const isTicketChannel = channel.name.startsWith('ticket-') || channel.name.startsWith('closed-');
 
       // Check if user has staff role
       const staffRole = interaction.guild.roles.cache.get(config.staffTeamRoleId);
@@ -46,7 +41,7 @@ module.exports = {
       if (!staffRole || !interaction.member.roles.cache.has(staffRole.id)) {
         await interaction.reply({
           content: '❌ You do not have permission to convert tickets to GitHub issues. Staff role required.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -55,36 +50,42 @@ module.exports = {
       if (!config.githubToken) {
         await interaction.reply({
           content: '❌ GitHub integration is not configured. Please contact an administrator.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
 
       // Defer reply since this might take a while
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       const title = interaction.options.getString('title');
       const additionalDescription = interaction.options.getString('description') || '';
 
-      // Generate transcript and get participants
-      const transcript = await this.generateTranscript(channel);
-      const participants = await this.getTicketParticipants(channel);
+      let transcript = null;
+      let participants = [];
+
+      // Only generate transcript and participants for ticket channels
+      if (isTicketChannel) {
+        transcript = await this.generateTranscript(channel);
+        participants = await this.getTicketParticipants(channel);
+      }
       
       // Create GitHub issue
-      const issueData = await this.createGitHubIssue(title, transcript, additionalDescription, channel, participants);
+      const issueData = await this.createGitHubIssue(title, transcript, additionalDescription, channel, participants, isTicketChannel);
       
       if (!issueData) {
         await interaction.editReply({
-          content: '❌ Failed to create GitHub issue. Please check your GitHub configuration.',
-          ephemeral: true
+          content: '❌ Failed to create GitHub issue. Please check your GitHub configuration.'
         });
         return;
       }
 
       // Create embed for the conversion notification
       const embed = new EmbedBuilder()
-        .setTitle('🎫 Ticket Converted to GitHub Issue')
-        .setDescription(`This ticket has been converted to a developer issue for better tracking and resolution.`)
+        .setTitle(isTicketChannel ? '🎫 Ticket Converted to GitHub Issue' : '📝 GitHub Issue Created')
+        .setDescription(isTicketChannel 
+          ? `This ticket has been converted to a developer issue for better tracking and resolution.`
+          : `A new GitHub issue has been created for tracking and development.`)
         .addFields(
           { 
             name: '📋 Issue Title', 
@@ -102,14 +103,14 @@ module.exports = {
             inline: true
           },
           {
-            name: '👤 Converted by',
+            name: '👤 Created by',
             value: interaction.user.tag,
             inline: true
           }
         )
         .setColor(0x2ea043) // GitHub green
         .setTimestamp()
-        .setFooter({ text: 'GitHub Issue Conversion' });
+        .setFooter({ text: isTicketChannel ? 'Ticket Conversion' : 'GitHub Issue Creation' });
 
       // Add participants information if available
       if (participants && participants.length > 0) {
@@ -138,8 +139,7 @@ module.exports = {
 
       // Send confirmation to the staff member
       await interaction.editReply({
-        content: `✅ Successfully converted ticket to GitHub issue!\n🔗 [View Issue #${issueData.number}](${issueData.html_url})`,
-        ephemeral: true
+        content: `✅ Successfully converted ticket to GitHub issue!\n🔗 [View Issue #${issueData.number}](${issueData.html_url})`
       });
 
       console.log(`✅ Ticket converted to GitHub issue #${issueData.number} by ${interaction.user.tag}`);
@@ -153,7 +153,7 @@ module.exports = {
       
       try {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: errorMessage, ephemeral: true });
+          await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
         } else {
           await interaction.editReply({ content: errorMessage });
         }
@@ -264,10 +264,14 @@ module.exports = {
       
       const [owner, repo] = config.githubRepo.split('/');
       if (!owner || !repo) {
-        throw new Error('Invalid GitHub repository format. Use "owner/repo"');
+        console.error('❌ Invalid GitHub repository format:', config.githubRepo);
+        throw new Error(`Invalid GitHub repository format: "${config.githubRepo}". Use "owner/repo" format.`);
       }
 
-      const issueBody = this.formatIssueBody(transcript, additionalDescription, channel, participants);
+      console.log(`🔍 Attempting to create GitHub issue in ${owner}/${repo}`);
+      console.log(`🔑 Using token: ${config.githubToken ? config.githubToken.substring(0, 8) + '...' : 'NOT SET'}`);
+
+      const issueBody = this.formatIssueBody(transcript, additionalDescription, channel, participants, isTicketChannel);
       
       const response = await axios.post(
         `https://api.github.com/repos/${owner}/${repo}/issues`,
@@ -287,58 +291,86 @@ module.exports = {
 
       return response.data;
     } catch (error) {
-      console.error('❌ Error creating GitHub issue:', error.response?.data || error.message);
+      console.error('❌ Error creating GitHub issue:');
+      console.error('Status:', error.response?.status);
+      console.error('Data:', error.response?.data);
+      console.error('Message:', error.message);
+      
+      if (error.response?.status === 404) {
+        console.error('❌ Repository not found or token lacks access. Check:');
+        console.error('   - Repository exists and is spelled correctly');
+        console.error('   - Token has "repo" scope');
+        console.error('   - Token owner has access to the repository');
+      } else if (error.response?.status === 401) {
+        console.error('❌ Authentication failed. Check:');
+        console.error('   - Token is valid and not expired');
+        console.error('   - Token format is correct (should start with ghp_ or github_pat_)');
+      }
+      
       return null;
     }
   },
 
-  formatIssueBody(transcript, additionalDescription, channel, participants) {
+  formatIssueBody(transcript, additionalDescription, channel, participants, isTicketChannel) {
     let body = '';
     
     if (additionalDescription) {
-      body += `## Additional Description\n${additionalDescription}\n\n`;
+      body += `## Description\n${additionalDescription}\n\n`;
     }
     
-    body += `## Discord Ticket Information\n`;
-    body += `- **Channel:** ${channel.name}\n`;
-    body += `- **Category:** ${channel.parent?.name || 'Unknown'}\n`;
-    body += `- **Created:** ${channel.createdAt.toISOString()}\n\n`;
-    
-    if (participants && participants.length > 0) {
-      body += `## Ticket Participants\n\n`;
+    if (isTicketChannel) {
+      // Ticket-specific information
+      body += `## Discord Ticket Information\n`;
+      body += `- **Channel:** ${channel.name}\n`;
+      body += `- **Category:** ${channel.parent?.name || 'Unknown'}\n`;
+      body += `- **Created:** ${channel.createdAt.toISOString()}\n\n`;
       
-      // Separate creators and staff
-      const creators = participants.filter(p => p.isCreator);
-      const staff = participants.filter(p => p.isStaff && !p.isCreator);
-      const others = participants.filter(p => !p.isStaff && !p.isCreator);
-      
-      if (creators.length > 0) {
-        body += `**Ticket Creator:**\n`;
-        creators.forEach(creator => {
-          body += `- ${creator.displayName} (@${creator.username})\n`;
-        });
-        body += '\n';
+      if (participants && participants.length > 0) {
+        body += `## Ticket Participants\n\n`;
+        
+        // Separate creators and staff
+        const creators = participants.filter(p => p.isCreator);
+        const staff = participants.filter(p => p.isStaff && !p.isCreator);
+        const others = participants.filter(p => !p.isStaff && !p.isCreator);
+        
+        if (creators.length > 0) {
+          body += `**Ticket Creator:**\n`;
+          creators.forEach(creator => {
+            body += `- ${creator.displayName} (@${creator.username})\n`;
+          });
+          body += '\n';
+        }
+        
+        if (staff.length > 0) {
+          body += `**Staff Members:**\n`;
+          staff.forEach(member => {
+            body += `- ${member.displayName} (@${member.username})\n`;
+          });
+          body += '\n';
+        }
+        
+        if (others.length > 0) {
+          body += `**Other Participants:**\n`;
+          others.forEach(member => {
+            body += `- ${member.displayName} (@${member.username})\n`;
+          });
+          body += '\n';
+        }
       }
       
-      if (staff.length > 0) {
-        body += `**Staff Members:**\n`;
-        staff.forEach(member => {
-          body += `- ${member.displayName} (@${member.username})\n`;
-        });
-        body += '\n';
+      if (transcript) {
+        body += `## Ticket Transcript\n\n`;
+        body += `\`\`\`markdown\n${transcript}\n\`\`\``;
       }
+    } else {
+      // Regular channel information
+      body += `## Discord Channel Information\n`;
+      body += `- **Channel:** ${channel.name}\n`;
+      body += `- **Category:** ${channel.parent?.name || 'Unknown'}\n`;
+      body += `- **Created via:** Discord Bot Command\n\n`;
       
-      if (others.length > 0) {
-        body += `**Other Participants:**\n`;
-        others.forEach(member => {
-          body += `- ${member.displayName} (@${member.username})\n`;
-        });
-        body += '\n';
-      }
+      body += `_This issue was created directly from a Discord channel using the bot command._`;
     }
-    
-    body += `## Ticket Transcript\n\n`;
-    body += `\`\`\`markdown\n${transcript}\n\`\`\``;
     
     return body;
   }
